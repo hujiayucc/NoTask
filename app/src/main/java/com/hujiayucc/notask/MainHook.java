@@ -22,7 +22,8 @@ public final class MainHook extends XposedModule {
     private static final long BACKGROUND_CONFIRM_DELAY_MS = 180L;
 
     private final AtomicBoolean hooksInstalled = new AtomicBoolean(false);
-    private final ForegroundTracker foregroundTracker = new ForegroundTracker();
+    private final ForegroundTracker startedTracker = new ForegroundTracker();
+    private final ForegroundTracker resumedTracker = new ForegroundTracker();
 
     private volatile String processName = "";
     private volatile String targetPackageName = "";
@@ -123,8 +124,8 @@ public final class MainHook extends XposedModule {
         if (activity == null) {
             return;
         }
-        if (mode == ModuleConfig.MODE_BACKGROUND && foregroundTracker.isBackground()) {
-            scheduleBackgroundHide(activity, "mode_changed_in_background");
+        if (mode == ModuleConfig.MODE_BACKGROUND && resumedTracker.isBackground()) {
+            excludeFromRecent(activity, true, "mode_changed_while_not_resumed");
         } else if (mode == ModuleConfig.MODE_BACK) {
             excludeFromRecent(activity, false, "mode_changed_to_back");
         }
@@ -151,11 +152,13 @@ public final class MainHook extends XposedModule {
         int hookCount = registerOnKeyDown()
                 + registerDispatchKeyEvent()
                 + registerOnStart()
+                + registerOnResume()
+                + registerOnPause()
                 + registerOnStop();
-        String result = hookCount == 4 ? "ok" : (hookCount == 0 ? "failed" : "partial");
+        String result = hookCount == 6 ? "ok" : (hookCount == 0 ? "failed" : "partial");
         log(hookCount == 0 ? Log.ERROR : Log.INFO, TAG,
                 "event=install_finished result=" + result + " package=" + packageName
-                        + " process=" + processName + " hooks=" + hookCount + "/4");
+                        + " process=" + processName + " hooks=" + hookCount + "/6");
     }
 
     private int registerOnKeyDown() {
@@ -218,6 +221,54 @@ public final class MainHook extends XposedModule {
             logMethodMissing(Activity.class, "onStart()", e);
         } catch (Throwable t) {
             logHookFailure(Activity.class, "onStart()", t);
+        }
+        return 0;
+    }
+
+    private int registerOnResume() {
+        try {
+            Method method = Activity.class.getDeclaredMethod("onResume");
+            hook(method)
+                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                    .setExceptionMode(XposedInterface.ExceptionMode.DEFAULT)
+                    .intercept(chain -> {
+                        Object receiver = chain.getThisObject();
+                        Object result = chain.proceed();
+                        if (receiver instanceof Activity) {
+                            handleActivityResumed((Activity) receiver);
+                        }
+                        return result;
+                    });
+            logHookRegistered(method);
+            return 1;
+        } catch (NoSuchMethodException e) {
+            logMethodMissing(Activity.class, "onResume()", e);
+        } catch (Throwable t) {
+            logHookFailure(Activity.class, "onResume()", t);
+        }
+        return 0;
+    }
+
+    private int registerOnPause() {
+        try {
+            Method method = Activity.class.getDeclaredMethod("onPause");
+            hook(method)
+                    .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                    .setExceptionMode(XposedInterface.ExceptionMode.DEFAULT)
+                    .intercept(chain -> {
+                        Object receiver = chain.getThisObject();
+                        Object result = chain.proceed();
+                        if (receiver instanceof Activity) {
+                            handleActivityPaused((Activity) receiver);
+                        }
+                        return result;
+                    });
+            logHookRegistered(method);
+            return 1;
+        } catch (NoSuchMethodException e) {
+            logMethodMissing(Activity.class, "onPause()", e);
+        } catch (Throwable t) {
+            logHookFailure(Activity.class, "onPause()", t);
         }
         return 0;
     }
@@ -289,21 +340,47 @@ public final class MainHook extends XposedModule {
     }
 
     private void handleActivityStarted(Activity activity) {
-        foregroundTracker.onStarted(activity);
+        startedTracker.onStarted(activity);
         lastActivity = new WeakReference<>(activity);
         cancelPendingBackgroundHide();
         excludeFromRecent(activity, false, "activity_started");
         log(Log.DEBUG, TAG, "event=foreground_state result=foreground package="
-                + activity.getPackageName() + " started=" + foregroundTracker.getStartedCount());
+                + activity.getPackageName() + " started=" + startedTracker.getStartedCount());
+    }
+
+    private void handleActivityResumed(Activity activity) {
+        resumedTracker.onStarted(activity);
+        lastActivity = new WeakReference<>(activity);
+        cancelPendingBackgroundHide();
+        if (hideMode == ModuleConfig.MODE_BACKGROUND) {
+            excludeFromRecent(activity, false, "activity_resumed");
+        }
+        log(Log.DEBUG, TAG, "event=interaction_state result=resumed package="
+                + activity.getPackageName() + " resumed=" + resumedTracker.getStartedCount());
+    }
+
+    private void handleActivityPaused(Activity activity) {
+        lastActivity = new WeakReference<>(activity);
+        boolean noResumedActivities = resumedTracker.onStopped(activity);
+        log(Log.DEBUG, TAG, "event=interaction_state result="
+                + (noResumedActivities ? "pause_candidate" : "resumed")
+                + " package=" + activity.getPackageName()
+                + " resumed=" + resumedTracker.getStartedCount());
+        if (noResumedActivities
+                && hideMode == ModuleConfig.MODE_BACKGROUND
+                && !isChangingConfigurations(activity)) {
+            cancelPendingBackgroundHide();
+            excludeFromRecent(activity, true, "all_activities_paused");
+        }
     }
 
     private void handleActivityStopped(Activity activity) {
         lastActivity = new WeakReference<>(activity);
-        boolean background = foregroundTracker.onStopped(activity);
+        boolean background = startedTracker.onStopped(activity);
         log(Log.DEBUG, TAG, "event=foreground_state result="
                 + (background ? "background_candidate" : "foreground")
                 + " package=" + activity.getPackageName()
-                + " started=" + foregroundTracker.getStartedCount());
+                + " started=" + startedTracker.getStartedCount());
         if (background
                 && hideMode == ModuleConfig.MODE_BACKGROUND
                 && !isChangingConfigurations(activity)) {
@@ -330,7 +407,7 @@ public final class MainHook extends XposedModule {
         WeakReference<Activity> activityReference = new WeakReference<>(activity);
         pendingBackgroundHide = () -> {
             pendingBackgroundHide = null;
-            if (hideMode != ModuleConfig.MODE_BACKGROUND || !foregroundTracker.isBackground()) {
+            if (hideMode != ModuleConfig.MODE_BACKGROUND || !startedTracker.isBackground()) {
                 return;
             }
             Activity target = activityReference.get();
