@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">NoTask</string>
+    <string name="app_description">隐藏最近任务列表视图</string>
 </resources>

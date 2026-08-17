@@ -3,29 +3,36 @@ plugins {
 }
 
 android {
-    namespace 'com.hujiayucc.notask'
-    compileSdk 34
+    namespace = 'com.hujiayucc.notask'
+    compileSdk = 37
 
     defaultConfig {
-        applicationId "com.hujiayucc.notask"
-        minSdk 23
-        targetSdk 34
-        versionCode 11
-        versionName "1.1"
+        applicationId = "com.hujiayucc.notask"
+        minSdk = 26
+        targetSdk = 37
+        versionCode = 12
+        versionName = "1.2"
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled = false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    packaging {
+        resources {
+            merges += 'META-INF/xposed/*'
+        }
     }
 }
 
 dependencies {
-    compileOnly 'de.robv.android.xposed:api:82'
+    compileOnly 'io.github.libxposed:api:102.0.0'
 }
