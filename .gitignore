@@ -14,3 +14,6 @@
 .cxx
 local.properties
 .androidide
+
+backup/
+.operit/
