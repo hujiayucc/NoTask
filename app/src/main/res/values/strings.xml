@@ -1,4 +1,28 @@
 <resources>
     <string name="app_name">NoTask</string>
-    <string name="app_description">隐藏最近任务列表视图</string>
+    <string name="app_description">按应用配置最近任务隐藏方式</string>
+    <string name="module_active">模块已激活</string>
+    <string name="module_inactive">模块未激活</string>
+    <string name="module_active_detail">%1$s · API %2$d</string>
+    <string name="module_inactive_detail">未连接到 Xposed 服务</string>
+    <string name="module_remote_unavailable">框架不支持远程配置</string>
+    <string name="module_version">版本 %1$s (%2$d)</string>
+    <string name="search_apps">搜索应用或包名</string>
+    <string name="app_configuration">应用配置</string>
+    <string name="app_count">已启用 %1$d · 共 %2$d</string>
+    <string name="loading_apps">正在载入应用</string>
+    <string name="empty_apps">没有匹配的应用</string>
+    <string name="mode_title">隐藏时机</string>
+    <string name="mode_back">返回键</string>
+    <string name="mode_background">进入后台</string>
+    <string name="app_enabled_back">已启用 · 返回键隐藏</string>
+    <string name="app_enabled_background">已启用 · 后台自动隐藏</string>
+    <string name="app_disabled">未启用</string>
+    <string name="scope_service_unavailable">模块未激活，配置暂不可用</string>
+    <string name="scope_request_failed">作用域启用失败：%1$s</string>
+    <string name="scope_request_no_detail">框架未返回原因</string>
+    <string name="scope_remove_failed">作用域停用失败</string>
+    <string name="config_write_failed">配置保存失败</string>
+    <string name="app_load_failed">应用列表载入失败</string>
+    <string name="enable_app">启用 %1$s</string>
 </resources>
